@@ -3,8 +3,11 @@ import asyncio
 
 app_ui = ui.page_fluid(
     ui.tags.head(
-        # Include Ruffle script from the CDN
-        ui.tags.script(src="https://cdn.jsdelivr.net/npm/ruffle-nightly@latest/ruffle.js"),
+        # Include Ruffle script from the CDN with proper type
+        ui.tags.script(
+            src="https://unpkg.com/@ruffle-rs/ruffle",
+            type="text/javascript"
+        ),
     ),
     ui.h2("ShinyLive Ruffle Integration"),
     ui.layout_sidebar(
@@ -51,7 +54,7 @@ app_ui = ui.page_fluid(
     Shiny.addCustomMessageHandler("loadSWF", function(swf_url) {
         window.loadSWF(swf_url);
     });
-    """),
+    """, type="text/javascript"),
 )
 
 def server(input, output, session):
