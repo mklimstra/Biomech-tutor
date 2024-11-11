@@ -29,132 +29,128 @@ app_ui = ui.page_fluid(
     ),
     ui.tags.head(
         ui.tags.script(src="https://unpkg.com/@ruffle-rs/ruffle"),
-        # Add webkit-specific prefixes for Safari
         ui.tags.style("""
             * {
                 -webkit-box-sizing: border-box;
                 -moz-box-sizing: border-box;
                 box-sizing: border-box;
             }
-        """)
-    ),
-    ui.tags.style("""
-        .header-container {
-            background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
-            padding: 8px 16px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            height: 60px;
-            max-width: 1600px;
-            margin: 0 auto;
-            width: calc(100% - 32px);
-            -webkit-box-sizing: border-box;
-            box-sizing: border-box;
-        }
-        
-        .header-content {
-            display: -webkit-flex;
-            display: flex;
-            -webkit-align-items: center;
-            align-items: center;
-            height: 100%;
-            gap: 30px;
-        }
-        
-        .main-header {
-            color: #333333;
-            margin: 0;
-            font-size: 1.75em;
-            font-weight: 600;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-            white-space: nowrap;
-            line-height: 1;
-            padding-top: 3px;
-        }
-        
-        .selector-container {
-            display: -webkit-flex;
-            display: flex;
-            -webkit-align-items: center;
-            align-items: center;
-            gap: 12px;
-            height: 100%;
-        }
-        
-        .selectInput {
-            max-width: 400px;
-            min-width: 200px;
-        }
-        
-        .form-group {
-            margin-bottom: 0 !important;
-        }
-        
-        .form-control {
-            height: 34px !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-        }
-        
-        .swf-container {
-            width: calc(100% - 32px);
-            max-width: 1600px;
-            margin: 20px auto;
-            background-color: white;
-            border: 2px solid white;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            position: relative;
-            -webkit-box-sizing: border-box;
-            box-sizing: border-box;
-        }
-        
-        .swf-aspect-ratio {
-            position: relative;
-            padding-bottom: 75%; /* 4:3 aspect ratio */
-            height: 0;
-            overflow: hidden;
-        }
-        
-        #swf-player {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: white;
-        }
-        
-        #swf-player ruffle-player {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: block;
-            -webkit-transform: translateZ(0);
-            transform: translateZ(0);
-        }
-
-        /* Media query for smaller screens */
-        @media (max-width: 768px) {
-            .header-container,
-            .swf-container {
-                width: calc(100% - 20px);
+            
+            .header-container {
+                background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+                padding: 8px 16px;
+                margin-bottom: 10px;
+                border-radius: 6px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                height: 60px;
+                max-width: 1600px;
+                margin: 0 auto;
+                width: calc(100% - 32px);
+                -webkit-box-sizing: border-box;
+                box-sizing: border-box;
             }
-        }
-
-        /* Safari-specific fixes */
-        @supports (-webkit-overflow-scrolling: touch) {
+            
+            .header-content {
+                display: -webkit-flex;
+                display: flex;
+                -webkit-align-items: center;
+                align-items: center;
+                height: 100%;
+                gap: 30px;
+            }
+            
+            .main-header {
+                color: #333333;
+                margin: 0;
+                font-size: 1.75em;
+                font-weight: 600;
+                text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+                font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+                white-space: nowrap;
+                line-height: 1;
+                padding-top: 3px;
+            }
+            
+            .selector-container {
+                display: -webkit-flex;
+                display: flex;
+                -webkit-align-items: center;
+                align-items: center;
+                gap: 12px;
+                height: 100%;
+            }
+            
+            .selectInput {
+                max-width: 400px;
+                min-width: 200px;
+            }
+            
+            .form-group {
+                margin-bottom: 0 !important;
+            }
+            
+            .form-control {
+                height: 34px !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+            }
+            
+            .swf-container {
+                width: calc(100% - 32px);
+                max-width: 1600px;
+                margin: 20px auto;
+                background-color: white;
+                border: 2px solid white;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                position: relative;
+                -webkit-box-sizing: border-box;
+                box-sizing: border-box;
+            }
+            
+            .swf-aspect-ratio {
+                position: relative;
+                padding-bottom: 75%;
+                height: 0;
+                overflow: hidden;
+            }
+            
+            #swf-player {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: white;
+            }
+            
             #swf-player ruffle-player {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: block;
                 -webkit-transform: translateZ(0);
                 transform: translateZ(0);
-                -webkit-backface-visibility: hidden;
-                backface-visibility: hidden;
             }
-        }
-    """),
+
+            @media (max-width: 768px) {
+                .header-container,
+                .swf-container {
+                    width: calc(100% - 20px);
+                }
+            }
+
+            @supports (-webkit-overflow-scrolling: touch) {
+                #swf-player ruffle-player {
+                    -webkit-transform: translateZ(0);
+                    transform: translateZ(0);
+                    -webkit-backface-visibility: hidden;
+                    backface-visibility: hidden;
+                }
+            }
+        """)
+    ),
     ui.tags.script("""
     console.log("Script starting...");
     
@@ -231,12 +227,11 @@ app_ui = ui.page_fluid(
     window.addEventListener('resize', function() {
         const player = document.querySelector('ruffle-player');
         if (player) {
-            // Force a repaint in Safari
             player.style.webkitTransform = 'translateZ(0)';
             player.style.transform = 'translateZ(0)';
         }
     });
-    """),
+    """)
 )
 
 def server(input, output, session):
