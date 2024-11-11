@@ -28,7 +28,13 @@ app_ui = ui.page_fluid(
         )
     ),
     ui.tags.head(
-        ui.tags.script(src="https://unpkg.com/@ruffle-rs/ruffle"),
+        ui.tags.script("""
+            // Load Ruffle dynamically
+            var ruffleScript = document.createElement('script');
+            ruffleScript.src = 'https://unpkg.com/@ruffle-rs/ruffle';
+            ruffleScript.setAttribute('crossorigin', 'anonymous');
+            document.head.appendChild(ruffleScript);
+        """),
         ui.tags.style("""
             * {
                 -webkit-box-sizing: border-box;
@@ -158,10 +164,18 @@ app_ui = ui.page_fluid(
         console.log("loadSWF called with URL:", swf_url);
         
         try {
-            // Wait for Ruffle to be available
-            while (!window.RufflePlayer || !window.RufflePlayer.newest()) {
-                console.log("Waiting for Ruffle...");
+            // More robust Ruffle availability check
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            while ((!window.RufflePlayer || !window.RufflePlayer.newest()) && attempts < maxAttempts) {
+                console.log(`Waiting for Ruffle... Attempt ${attempts + 1}`);
                 await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!window.RufflePlayer || !window.RufflePlayer.newest()) {
+                throw new Error("Ruffle failed to load after multiple attempts");
             }
             
             const container = document.getElementById("swf-player");
@@ -173,6 +187,7 @@ app_ui = ui.page_fluid(
             container.innerHTML = '';
             
             if (!swf_url) {
+                container.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Select a topic to load content</div>';
                 return;
             }
             
@@ -180,17 +195,32 @@ app_ui = ui.page_fluid(
             const ruffle = window.RufflePlayer.newest();
             const player = ruffle.createPlayer();
             
-            // Set explicit dimensions before appending
+            // Configure player before loading
             player.style.position = 'absolute';
             player.style.width = '100%';
             player.style.height = '100%';
+            player.style.visibility = 'visible';  // Ensure visibility in Safari
+            
+            // Safari-specific styles
+            if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+                player.style.webkitTransform = 'translateZ(0)';
+                player.style.webkitBackfaceVisibility = 'hidden';
+            }
             
             container.appendChild(player);
             
-            // Add debug listener for player events
-            player.addEventListener('loadeddata', () => console.log('SWF loaded data'));
+            // Add event listeners
+            player.addEventListener('loadeddata', () => {
+                console.log('SWF loaded data');
+                player.style.visibility = 'visible';
+            });
+            
             player.addEventListener('playing', () => console.log('SWF is playing'));
-            player.addEventListener('error', (e) => console.error('SWF error:', e));
+            
+            player.addEventListener('error', (e) => {
+                console.error('SWF error:', e);
+                throw e;
+            });
             
             console.log("Loading SWF...");
             
@@ -205,7 +235,8 @@ app_ui = ui.page_fluid(
                 wmode: "direct",
                 menu: true,
                 base: new URL(swf_url).origin + "/",
-                allowNetworking: "all"
+                allowNetworking: "all",
+                letterbox: "on"
             });
             
             console.log("SWF loaded successfully");
@@ -214,7 +245,11 @@ app_ui = ui.page_fluid(
             console.error("Error in loadSWF:", error);
             const container = document.getElementById("swf-player");
             if (container) {
-                container.innerHTML = `<div style="color: red; padding: 20px;">Error loading SWF: ${error.message}</div>`;
+                container.innerHTML = `
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                        <div style="color: red; padding: 20px;">Error loading content: ${error.message}</div>
+                        <div style="color: #666; font-size: 0.9em;">Try refreshing the page if the content doesn't load.</div>
+                    </div>`;
             }
         }
     };
