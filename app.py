@@ -29,6 +29,14 @@ app_ui = ui.page_fluid(
     ),
     ui.tags.head(
         ui.tags.script(src="https://unpkg.com/@ruffle-rs/ruffle"),
+        # Add webkit-specific prefixes for Safari
+        ui.tags.style("""
+            * {
+                -webkit-box-sizing: border-box;
+                -moz-box-sizing: border-box;
+                box-sizing: border-box;
+            }
+        """)
     ),
     ui.tags.style("""
         .header-container {
@@ -38,10 +46,17 @@ app_ui = ui.page_fluid(
             border-radius: 6px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             height: 60px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: calc(100% - 32px);
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
         }
         
         .header-content {
+            display: -webkit-flex;
             display: flex;
+            -webkit-align-items: center;
             align-items: center;
             height: 100%;
             gap: 30px;
@@ -53,14 +68,16 @@ app_ui = ui.page_fluid(
             font-size: 1.75em;
             font-weight: 600;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
             white-space: nowrap;
             line-height: 1;
             padding-top: 3px;
         }
         
         .selector-container {
+            display: -webkit-flex;
             display: flex;
+            -webkit-align-items: center;
             align-items: center;
             gap: 12px;
             height: 100%;
@@ -81,22 +98,61 @@ app_ui = ui.page_fluid(
             padding-bottom: 0 !important;
         }
         
-        #swf-player {
-            width: 800px;  /* Fixed width */
-            height: 600px; /* Fixed height */
-            background-color: white;
+        .swf-container {
+            width: calc(100% - 32px);
+            max-width: 1600px;
             margin: 20px auto;
-            border: 1px solid #ccc;
+            background-color: white;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             position: relative;
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+        
+        .swf-aspect-ratio {
+            position: relative;
+            padding-bottom: 75%; /* 4:3 aspect ratio */
+            height: 0;
+            overflow: hidden;
+        }
+        
+        #swf-player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
         }
         
         #swf-player ruffle-player {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            display: block !important;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        /* Media query for smaller screens */
+        @media (max-width: 768px) {
+            .header-container,
+            .swf-container {
+                width: calc(100% - 20px);
+            }
+        }
+
+        /* Safari-specific fixes */
+        @supports (-webkit-overflow-scrolling: touch) {
+            #swf-player ruffle-player {
+                -webkit-transform: translateZ(0);
+                transform: translateZ(0);
+                -webkit-backface-visibility: hidden;
+                backface-visibility: hidden;
+            }
         }
     """),
     ui.tags.script("""
@@ -127,6 +183,12 @@ app_ui = ui.page_fluid(
             // Create and configure the player
             const ruffle = window.RufflePlayer.newest();
             const player = ruffle.createPlayer();
+            
+            // Set explicit dimensions before appending
+            player.style.position = 'absolute';
+            player.style.width = '100%';
+            player.style.height = '100%';
+            
             container.appendChild(player);
             
             // Add debug listener for player events
@@ -141,7 +203,7 @@ app_ui = ui.page_fluid(
                 url: swf_url,
                 allowScriptAccess: true,
                 backgroundColor: "#FFFFFF",
-                scale: "noborder",
+                scale: "showall",
                 salign: "",
                 quality: "high",
                 wmode: "direct",
@@ -151,7 +213,6 @@ app_ui = ui.page_fluid(
             });
             
             console.log("SWF loaded successfully");
-            console.log("Player dimensions:", player.offsetWidth, "x", player.offsetHeight);
             
         } catch (error) {
             console.error("Error in loadSWF:", error);
@@ -162,12 +223,19 @@ app_ui = ui.page_fluid(
         }
     };
 
-    // Register the custom message handler
     Shiny.addCustomMessageHandler("loadSWF", function(swf_url) {
         window.loadSWF(swf_url);
     });
     
-    console.log("Script initialization complete");
+    // Improved resize handler
+    window.addEventListener('resize', function() {
+        const player = document.querySelector('ruffle-player');
+        if (player) {
+            // Force a repaint in Safari
+            player.style.webkitTransform = 'translateZ(0)';
+            player.style.transform = 'translateZ(0)';
+        }
+    });
     """),
 )
 
@@ -175,9 +243,13 @@ def server(input, output, session):
     @render.ui
     def swf_container():
         return ui.HTML("""
-            <div id='swf-player'>
-                <div style='position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);'>
-                    Select a topic to load content
+            <div class="swf-container">
+                <div class="swf-aspect-ratio">
+                    <div id="swf-player">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                            Select a topic to load content
+                        </div>
+                    </div>
                 </div>
             </div>
         """)
@@ -190,7 +262,7 @@ def server(input, output, session):
             from urllib.parse import quote
             encoded_file = quote(swf_file)
             swf_url = f"https://mklimstra.github.io/Biomech-tutor/swf/{encoded_file}"
-            print(f"Loading SWF from URL: {swf_url}")  # Server-side debug print
+            print(f"Loading SWF from URL: {swf_url}")
             await session.send_custom_message("loadSWF", swf_url)
         else:
             await session.send_custom_message("loadSWF", "")
