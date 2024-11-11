@@ -1,6 +1,5 @@
 from shiny import App, ui, render, reactive
 import asyncio
-from time import time
 
 app_ui = ui.page_fluid(
     ui.div(
@@ -32,7 +31,10 @@ app_ui = ui.page_fluid(
         ui.tags.meta({"http-equiv": "Cache-Control", "content": "no-cache, no-store, must-revalidate"}),
         ui.tags.meta({"http-equiv": "Pragma", "content": "no-cache"}),
         ui.tags.meta({"http-equiv": "Expires", "content": "0"}),
+        # Add specific CDN version of Ruffle
+        ui.tags.script({"src": "https://unpkg.com/@ruffle-rs/ruffle@0.1.0-nightly.2023.12.10/ruffle.js", "crossorigin": "anonymous"}),
         ui.tags.style("""
+            /* Existing styles remain the same */
             .header-container {
                 background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
                 padding: 8px 16px;
@@ -121,55 +123,10 @@ app_ui = ui.page_fluid(
             }
         """),
         ui.tags.script("""
-            // Load Ruffle with explicit WASM handling
-            async function loadRuffle() {
-                try {
-                    const ruffleScript = document.createElement('script');
-                    ruffleScript.src = 'https://unpkg.com/@ruffle-rs/ruffle';
-                    ruffleScript.setAttribute('crossorigin', 'anonymous');
-                    
-                    // Create a promise to wait for the script to load
-                    const loadPromise = new Promise((resolve, reject) => {
-                        ruffleScript.onload = () => resolve();
-                        ruffleScript.onerror = () => reject(new Error('Failed to load Ruffle script'));
-                    });
-                    
-                    document.head.appendChild(ruffleScript);
-                    await loadPromise;
-                    
-                    // Wait for WASM to be available
-                    const maxAttempts = 50;
-                    let attempts = 0;
-                    
-                    while (!window.RufflePlayer?.newest() && attempts < maxAttempts) {
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        attempts++;
-                    }
-                    
-                    if (!window.RufflePlayer?.newest()) {
-                        throw new Error('Ruffle WASM failed to initialize');
-                    }
-                    
-                    console.log('Ruffle loaded successfully');
-                    window.ruffleLoaded = true;
-                } catch (error) {
-                    console.error('Error loading Ruffle:', error);
-                    throw error;
-                }
-            }
-            
-            // Load Ruffle immediately
-            loadRuffle().catch(console.error);
-        """),
-        ui.tags.script("""
             window.loadSWF = async function(swf_url) {
                 console.log("loadSWF called with URL:", swf_url);
                 
                 try {
-                    if (!window.ruffleLoaded) {
-                        await loadRuffle();
-                    }
-                    
                     const container = document.getElementById("swf-player");
                     if (!container) {
                         throw new Error("SWF container not found");
@@ -182,6 +139,17 @@ app_ui = ui.page_fluid(
                         return;
                     }
                     
+                    // Wait for Ruffle to be available
+                    let attempts = 0;
+                    while (!window.RufflePlayer && attempts < 50) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+                    
+                    if (!window.RufflePlayer) {
+                        throw new Error("Ruffle failed to load");
+                    }
+                    
                     const ruffle = window.RufflePlayer.newest();
                     const player = ruffle.createPlayer();
                     
@@ -190,19 +158,25 @@ app_ui = ui.page_fluid(
                         width: '100%',
                         height: '100%',
                         top: '0',
-                        left: '0'
+                        left: '0',
+                        visibility: 'visible'
                     });
                     
                     container.appendChild(player);
                     
-                    player.addEventListener('loadeddata', () => console.log('SWF loaded data'));
+                    // Add load and error handlers
+                    player.addEventListener('loadeddata', () => {
+                        console.log('SWF loaded data');
+                        player.style.visibility = 'visible';
+                    });
+                    
                     player.addEventListener('error', (e) => {
                         console.error('SWF error:', e);
                         throw e;
                     });
                     
-                    const cacheBustUrl = `${swf_url}?_=${new Date().getTime()}`;
-                    
+                    // Load the SWF with cache busting
+                    const cacheBustUrl = `${swf_url}?_=${Date.now()}`;
                     await player.load({
                         url: cacheBustUrl,
                         allowScriptAccess: true,
@@ -223,12 +197,13 @@ app_ui = ui.page_fluid(
                         container.innerHTML = `
                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
                                 <div style="color: red; padding: 20px;">Error loading content: ${error.message}</div>
-                                <div style="color: #666; font-size: 0.9em;">Try refreshing the page if the content doesn't load.</div>
+                                <div style="color: #666; font-size: 0.9em;">Please try refreshing the page.</div>
                             </div>`;
                     }
                 }
             };
 
+            // Add custom message handler
             Shiny.addCustomMessageHandler("loadSWF", function(swf_url) {
                 window.loadSWF(swf_url);
             });
