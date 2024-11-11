@@ -1,5 +1,6 @@
 from shiny import App, ui, render, reactive
 import asyncio
+from time import time
 
 app_ui = ui.page_fluid(
     ui.div(
@@ -28,20 +29,10 @@ app_ui = ui.page_fluid(
         )
     ),
     ui.tags.head(
-        ui.tags.script("""
-            // Load Ruffle dynamically
-            var ruffleScript = document.createElement('script');
-            ruffleScript.src = 'https://unpkg.com/@ruffle-rs/ruffle';
-            ruffleScript.setAttribute('crossorigin', 'anonymous');
-            document.head.appendChild(ruffleScript);
-        """),
+        ui.tags.meta({"http-equiv": "Cache-Control", "content": "no-cache, no-store, must-revalidate"}),
+        ui.tags.meta({"http-equiv": "Pragma", "content": "no-cache"}),
+        ui.tags.meta({"http-equiv": "Expires", "content": "0"}),
         ui.tags.style("""
-            * {
-                -webkit-box-sizing: border-box;
-                -moz-box-sizing: border-box;
-                box-sizing: border-box;
-            }
-            
             .header-container {
                 background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
                 padding: 8px 16px;
@@ -52,14 +43,10 @@ app_ui = ui.page_fluid(
                 max-width: 1600px;
                 margin: 0 auto;
                 width: calc(100% - 32px);
-                -webkit-box-sizing: border-box;
-                box-sizing: border-box;
             }
             
             .header-content {
-                display: -webkit-flex;
                 display: flex;
-                -webkit-align-items: center;
                 align-items: center;
                 height: 100%;
                 gap: 30px;
@@ -71,34 +58,16 @@ app_ui = ui.page_fluid(
                 font-size: 1.75em;
                 font-weight: 600;
                 text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-                font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-                white-space: nowrap;
-                line-height: 1;
-                padding-top: 3px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             }
             
             .selector-container {
-                display: -webkit-flex;
-                display: flex;
-                -webkit-align-items: center;
-                align-items: center;
-                gap: 12px;
-                height: 100%;
-            }
-            
-            .selectInput {
-                max-width: 400px;
-                min-width: 200px;
+                flex-grow: 1;
+                max-width: 300px;
             }
             
             .form-group {
                 margin-bottom: 0 !important;
-            }
-            
-            .form-control {
-                height: 34px !important;
-                padding-top: 0 !important;
-                padding-bottom: 0 !important;
             }
             
             .swf-container {
@@ -106,11 +75,9 @@ app_ui = ui.page_fluid(
                 max-width: 1600px;
                 margin: 20px auto;
                 background-color: white;
-                border: 2px solid white;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                position: relative;
-                -webkit-box-sizing: border-box;
-                box-sizing: border-box;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             }
             
             .swf-aspect-ratio {
@@ -118,6 +85,7 @@ app_ui = ui.page_fluid(
                 padding-bottom: 75%;
                 height: 0;
                 overflow: hidden;
+                border-radius: 6px;
             }
             
             #swf-player {
@@ -130,143 +98,142 @@ app_ui = ui.page_fluid(
             }
             
             #swf-player ruffle-player {
-                position: absolute;
-                top: 0;
-                left: 0;
                 width: 100%;
                 height: 100%;
                 display: block;
-                -webkit-transform: translateZ(0);
-                transform: translateZ(0);
             }
-
+            
             @media (max-width: 768px) {
-                .header-container,
-                .swf-container {
-                    width: calc(100% - 20px);
+                .header-container {
+                    height: auto;
+                    padding: 10px;
+                }
+                
+                .header-content {
+                    flex-direction: column;
+                    gap: 10px;
+                    align-items: stretch;
+                }
+                
+                .selector-container {
+                    max-width: none;
                 }
             }
+        """),
+        ui.tags.script("""
+            // Load Ruffle with explicit WASM handling
+            async function loadRuffle() {
+                try {
+                    const ruffleScript = document.createElement('script');
+                    ruffleScript.src = 'https://unpkg.com/@ruffle-rs/ruffle';
+                    ruffleScript.setAttribute('crossorigin', 'anonymous');
+                    
+                    // Create a promise to wait for the script to load
+                    const loadPromise = new Promise((resolve, reject) => {
+                        ruffleScript.onload = () => resolve();
+                        ruffleScript.onerror = () => reject(new Error('Failed to load Ruffle script'));
+                    });
+                    
+                    document.head.appendChild(ruffleScript);
+                    await loadPromise;
+                    
+                    // Wait for WASM to be available
+                    const maxAttempts = 50;
+                    let attempts = 0;
+                    
+                    while (!window.RufflePlayer?.newest() && attempts < maxAttempts) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+                    
+                    if (!window.RufflePlayer?.newest()) {
+                        throw new Error('Ruffle WASM failed to initialize');
+                    }
+                    
+                    console.log('Ruffle loaded successfully');
+                    window.ruffleLoaded = true;
+                } catch (error) {
+                    console.error('Error loading Ruffle:', error);
+                    throw error;
+                }
+            }
+            
+            // Load Ruffle immediately
+            loadRuffle().catch(console.error);
+        """),
+        ui.tags.script("""
+            window.loadSWF = async function(swf_url) {
+                console.log("loadSWF called with URL:", swf_url);
+                
+                try {
+                    if (!window.ruffleLoaded) {
+                        await loadRuffle();
+                    }
+                    
+                    const container = document.getElementById("swf-player");
+                    if (!container) {
+                        throw new Error("SWF container not found");
+                    }
+                    
+                    container.innerHTML = '';
+                    
+                    if (!swf_url) {
+                        container.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Select a topic to load content</div>';
+                        return;
+                    }
+                    
+                    const ruffle = window.RufflePlayer.newest();
+                    const player = ruffle.createPlayer();
+                    
+                    Object.assign(player.style, {
+                        position: 'absolute',
+                        width: '100%',
+                        height: '100%',
+                        top: '0',
+                        left: '0'
+                    });
+                    
+                    container.appendChild(player);
+                    
+                    player.addEventListener('loadeddata', () => console.log('SWF loaded data'));
+                    player.addEventListener('error', (e) => {
+                        console.error('SWF error:', e);
+                        throw e;
+                    });
+                    
+                    const cacheBustUrl = `${swf_url}?_=${new Date().getTime()}`;
+                    
+                    await player.load({
+                        url: cacheBustUrl,
+                        allowScriptAccess: true,
+                        backgroundColor: "#FFFFFF",
+                        scale: "showall",
+                        quality: "high",
+                        wmode: "direct",
+                        menu: true,
+                        allowNetworking: "all"
+                    });
+                    
+                    console.log("SWF loaded successfully");
+                    
+                } catch (error) {
+                    console.error("Error in loadSWF:", error);
+                    const container = document.getElementById("swf-player");
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                                <div style="color: red; padding: 20px;">Error loading content: ${error.message}</div>
+                                <div style="color: #666; font-size: 0.9em;">Try refreshing the page if the content doesn't load.</div>
+                            </div>`;
+                    }
+                }
+            };
 
-            @supports (-webkit-overflow-scrolling: touch) {
-                #swf-player ruffle-player {
-                    -webkit-transform: translateZ(0);
-                    transform: translateZ(0);
-                    -webkit-backface-visibility: hidden;
-                    backface-visibility: hidden;
-                }
-            }
+            Shiny.addCustomMessageHandler("loadSWF", function(swf_url) {
+                window.loadSWF(swf_url);
+            });
         """)
-    ),
-    ui.tags.script("""
-    console.log("Script starting...");
-    
-    window.loadSWF = async function(swf_url) {
-        console.log("loadSWF called with URL:", swf_url);
-        
-        try {
-            // More robust Ruffle availability check
-            let attempts = 0;
-            const maxAttempts = 50;
-            
-            while ((!window.RufflePlayer || !window.RufflePlayer.newest()) && attempts < maxAttempts) {
-                console.log(`Waiting for Ruffle... Attempt ${attempts + 1}`);
-                await new Promise(resolve => setTimeout(resolve, 100));
-                attempts++;
-            }
-            
-            if (!window.RufflePlayer || !window.RufflePlayer.newest()) {
-                throw new Error("Ruffle failed to load after multiple attempts");
-            }
-            
-            const container = document.getElementById("swf-player");
-            if (!container) {
-                throw new Error("SWF container not found");
-            }
-            
-            // Clear the container
-            container.innerHTML = '';
-            
-            if (!swf_url) {
-                container.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Select a topic to load content</div>';
-                return;
-            }
-            
-            // Create and configure the player
-            const ruffle = window.RufflePlayer.newest();
-            const player = ruffle.createPlayer();
-            
-            // Configure player before loading
-            player.style.position = 'absolute';
-            player.style.width = '100%';
-            player.style.height = '100%';
-            player.style.visibility = 'visible';  // Ensure visibility in Safari
-            
-            // Safari-specific styles
-            if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
-                player.style.webkitTransform = 'translateZ(0)';
-                player.style.webkitBackfaceVisibility = 'hidden';
-            }
-            
-            container.appendChild(player);
-            
-            // Add event listeners
-            player.addEventListener('loadeddata', () => {
-                console.log('SWF loaded data');
-                player.style.visibility = 'visible';
-            });
-            
-            player.addEventListener('playing', () => console.log('SWF is playing'));
-            
-            player.addEventListener('error', (e) => {
-                console.error('SWF error:', e);
-                throw e;
-            });
-            
-            console.log("Loading SWF...");
-            
-            // Load the SWF with specific configuration
-            await player.load({
-                url: swf_url,
-                allowScriptAccess: true,
-                backgroundColor: "#FFFFFF",
-                scale: "showall",
-                salign: "",
-                quality: "high",
-                wmode: "direct",
-                menu: true,
-                base: new URL(swf_url).origin + "/",
-                allowNetworking: "all",
-                letterbox: "on"
-            });
-            
-            console.log("SWF loaded successfully");
-            
-        } catch (error) {
-            console.error("Error in loadSWF:", error);
-            const container = document.getElementById("swf-player");
-            if (container) {
-                container.innerHTML = `
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
-                        <div style="color: red; padding: 20px;">Error loading content: ${error.message}</div>
-                        <div style="color: #666; font-size: 0.9em;">Try refreshing the page if the content doesn't load.</div>
-                    </div>`;
-            }
-        }
-    };
-
-    Shiny.addCustomMessageHandler("loadSWF", function(swf_url) {
-        window.loadSWF(swf_url);
-    });
-    
-    // Improved resize handler
-    window.addEventListener('resize', function() {
-        const player = document.querySelector('ruffle-player');
-        if (player) {
-            player.style.webkitTransform = 'translateZ(0)';
-            player.style.transform = 'translateZ(0)';
-        }
-    });
-    """)
+    )
 )
 
 def server(input, output, session):
