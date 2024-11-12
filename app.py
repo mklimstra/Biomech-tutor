@@ -15,7 +15,19 @@ app_ui = ui.page_fluid(
                     {
                         "": "Select Topic",
                         "BM05.swf": "Basic Math",
+                        "CALC05.swf": "Calculus",
+                        "TRIG05.swf": "Trigonometry",
+                        "LK05.swf": "Linear Kinematics",
+                        "FR05.swf": "Force Resolution",
+                        "IM05.swf": "Impulse Momentum",
+                        "FRIC05.swf": "Friction",
                         "PM.swf": "Projectile Motion",
+                        "AK05.swf": "Angular Kinematics",
+                        "GK05.swf": "General Kinematics",
+                        "TOR05.swf": "Torque/Moment of Force",
+                        "MI05.swf": "Moment of Inertia",
+                        "SE05.swf": "Static Equilibrium",
+                        "DE05.swf": "Dynamics",
                     },
                     selected=""
                 ),
@@ -31,10 +43,10 @@ app_ui = ui.page_fluid(
         ui.tags.meta({"http-equiv": "Cache-Control", "content": "no-cache, no-store, must-revalidate"}),
         ui.tags.meta({"http-equiv": "Pragma", "content": "no-cache"}),
         ui.tags.meta({"http-equiv": "Expires", "content": "0"}),
-        # Add specific CDN version of Ruffle
-        ui.tags.script({"src": "https://unpkg.com/@ruffle-rs/ruffle@0.1.0-nightly.2023.12.10/ruffle.js", "crossorigin": "anonymous"}),
+        # Load Ruffle from jsDelivr CDN instead
+        ui.tags.script({"src": "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle", "crossorigin": "anonymous"}),
         ui.tags.style("""
-            /* Existing styles remain the same */
+            /* Styles remain the same */
             .header-container {
                 background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
                 padding: 8px 16px;
@@ -139,18 +151,22 @@ app_ui = ui.page_fluid(
                         return;
                     }
                     
-                    // Wait for Ruffle to be available
-                    let attempts = 0;
-                    while (!window.RufflePlayer && attempts < 50) {
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        attempts++;
-                    }
+                    // Wait for Ruffle with a timeout
+                    const waitForRuffle = async (timeout = 5000) => {
+                        const start = Date.now();
+                        
+                        while (!window.RufflePlayer && (Date.now() - start < timeout)) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                        if (!window.RufflePlayer) {
+                            throw new Error("Ruffle failed to load within " + timeout + "ms");
+                        }
+                        
+                        return window.RufflePlayer.newest();
+                    };
                     
-                    if (!window.RufflePlayer) {
-                        throw new Error("Ruffle failed to load");
-                    }
-                    
-                    const ruffle = window.RufflePlayer.newest();
+                    const ruffle = await waitForRuffle();
                     const player = ruffle.createPlayer();
                     
                     Object.assign(player.style, {
@@ -175,6 +191,16 @@ app_ui = ui.page_fluid(
                         throw e;
                     });
                     
+                    // Test URL availability before loading
+                    try {
+                        const response = await fetch(swf_url, { method: 'HEAD' });
+                        if (!response.ok) {
+                            throw new Error(`SWF file not found (${response.status})`);
+                        }
+                    } catch (error) {
+                        throw new Error(`Failed to access SWF file: ${error.message}`);
+                    }
+                    
                     // Load the SWF with cache busting
                     const cacheBustUrl = `${swf_url}?_=${Date.now()}`;
                     await player.load({
@@ -197,7 +223,7 @@ app_ui = ui.page_fluid(
                         container.innerHTML = `
                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
                                 <div style="color: red; padding: 20px;">Error loading content: ${error.message}</div>
-                                <div style="color: #666; font-size: 0.9em;">Please try refreshing the page.</div>
+                                <div style="color: #666; font-size: 0.9em;">Please verify that the content exists and try refreshing the page.</div>
                             </div>`;
                     }
                 }
@@ -233,7 +259,8 @@ def server(input, output, session):
         if swf_file:
             from urllib.parse import quote
             encoded_file = quote(swf_file)
-            swf_url = f"https://mklimstra.github.io/Biomech-tutor/swf/{encoded_file}"
+            # Change to raw.githubusercontent.com URL
+            swf_url = f"https://raw.githubusercontent.com/mklimstra/Biomech-tutor/main/swf/{encoded_file}"
             print(f"Loading SWF from URL: {swf_url}")
             await session.send_custom_message("loadSWF", swf_url)
         else:
